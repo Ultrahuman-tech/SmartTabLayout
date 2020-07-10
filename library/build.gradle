@@ -3,14 +3,14 @@ apply plugin: 'com.github.ben-manes.versions'
 apply plugin: 'com.github.hierynomus.license'
 
 android {
-  compileSdkVersion COMPILE_SDK_VERSION as int
+  compileSdkVersion buildConfig.compileSdk
   resourcePrefix 'stl_'
 
   defaultConfig {
     minSdkVersion 14
-    targetSdkVersion COMPILE_SDK_VERSION as int
-    versionCode VERSION_CODE as int
-    versionName VERSION_NAME
+    targetSdkVersion buildConfig.targetSdk
+    versionCode 1
+    versionName "1.0"
 
   }
   buildTypes {
@@ -22,8 +22,9 @@ android {
 }
 
 dependencies {
-  implementation "androidx.viewpager:viewpager:${ANDROIDX_BASE_VERSION}"
-  implementation "androidx.fragment:fragment:${ANDROIDX_BASE_VERSION}"
+  implementation deps.androidx.viewpager
+  implementation deps.androidx.viewpager2
+  implementation deps.androidx.fragment.lib
 }
 
 license {
@@ -36,6 +37,3 @@ license {
   excludes(["**/*.xml"])
 
 }
-
-pkginfo.name = ARTIFACT_NAME
-apply from: "${project.rootDir}/publish.gradle"

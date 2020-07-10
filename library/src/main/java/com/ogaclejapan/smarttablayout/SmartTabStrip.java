@@ -80,7 +80,7 @@ class SmartTabStrip extends LinearLayout {
   private int selectedPosition;
   private float selectionOffset;
   private SmartTabIndicationInterpolator indicationInterpolator;
-  private SmartTabLayout.TabColorizer customTabColorizer;
+  private TabColorizer customTabColorizer;
 
   SmartTabStrip(Context context, AttributeSet attrs) {
     super(context);
@@ -213,7 +213,7 @@ class SmartTabStrip extends LinearLayout {
     invalidate();
   }
 
-  void setCustomTabColorizer(SmartTabLayout.TabColorizer customTabColorizer) {
+  void setCustomTabColorizer(TabColorizer customTabColorizer) {
     this.customTabColorizer = customTabColorizer;
     invalidate();
   }
@@ -245,7 +245,7 @@ class SmartTabStrip extends LinearLayout {
     return indicatorAlwaysInCenter;
   }
 
-  SmartTabLayout.TabColorizer getTabColorizer() {
+  TabColorizer getTabColorizer() {
     return (customTabColorizer != null) ? customTabColorizer : defaultTabColorizer;
   }
 
@@ -268,7 +268,7 @@ class SmartTabStrip extends LinearLayout {
     final int height = getHeight();
     final int width = getWidth();
     final int tabCount = getChildCount();
-    final SmartTabLayout.TabColorizer tabColorizer = getTabColorizer();
+    final TabColorizer tabColorizer = getTabColorizer();
     final boolean isLayoutRtl = Utils.isLayoutRtl(this);
 
     if (indicatorInFront) {
@@ -338,7 +338,7 @@ class SmartTabStrip extends LinearLayout {
     }
 
     final int dividerHeightPx = (int) (Math.min(Math.max(0f, dividerHeight), 1f) * height);
-    final SmartTabLayout.TabColorizer tabColorizer = getTabColorizer();
+    final TabColorizer tabColorizer = getTabColorizer();
 
     // Vertical separators between the titles
     final int separatorTop = (height - dividerHeightPx) / 2;
@@ -418,7 +418,7 @@ class SmartTabStrip extends LinearLayout {
     canvas.drawRect(left, height - bottomBorderThickness, right, height, borderPaint);
   }
 
-  private static class SimpleTabColorizer implements SmartTabLayout.TabColorizer {
+  private static class SimpleTabColorizer implements TabColorizer {
 
     private int[] indicatorColors;
     private int[] dividerColors;
