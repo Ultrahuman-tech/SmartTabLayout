@@ -32,18 +32,20 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
-import androidx.viewpager.widget.PagerAdapter;
-import androidx.viewpager.widget.ViewPager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.viewpager2.widget.ViewPager2;
 
 /**
- * To be used with ViewPager to provide a tab indicator component which give constant feedback as
+ * To be used with ViewPager2 to provide a tab indicator component which give constant feedback as
  * to
  * the user's scroll progress.
  * <p>
  * To use the component, simply add it to your view hierarchy. Then in your
  * {@link android.app.Activity} or {@link androidx.fragment.app.Fragment} call
- * {@link #setViewPager(ViewPager)} providing it the ViewPager this
+ * {@link #setViewPager(ViewPager2, RecyclerView.Adapter, TabTitleProvider)} providing it the ViewPager this
  * layout
  * is being used for.
  * <p>
@@ -59,7 +61,7 @@ import androidx.viewpager.widget.ViewPager;
  * Forked from Google Samples &gt; SlidingTabsBasic &gt;
  * <a href="https://developer.android.com/samples/SlidingTabsBasic/src/com.example.android.common/view/SlidingTabLayout.html">SlidingTabLayout</a>
  */
-public class SmartTabLayout extends HorizontalScrollView {
+public class SmartTabLayout2 extends HorizontalScrollView {
 
   private static final boolean DEFAULT_DISTRIBUTE_EVENLY = false;
   private static final int TITLE_OFFSET_DIPS = 24;
@@ -80,8 +82,10 @@ public class SmartTabLayout extends HorizontalScrollView {
   private float tabViewTextSize;
   private int tabViewTextHorizontalPadding;
   private int tabViewTextMinWidth;
-  private ViewPager viewPager;
-  private ViewPager.OnPageChangeListener viewPagerPageChangeListener;
+  private ViewPager2 viewPager;
+  private ViewPager2.OnPageChangeCallback viewPagerPageChangeCallback;
+  @Nullable
+  private TabTitleProvider tabTitleProvider;
   private OnScrollChangeListener onScrollChangeListener;
   private TabProvider tabProvider;
   private InternalTabClickListener internalTabClickListener;
@@ -89,15 +93,20 @@ public class SmartTabLayout extends HorizontalScrollView {
   private boolean distributeEvenly;
   private int textAppearance;
 
-  public SmartTabLayout(Context context) {
+  /**
+   * An observer to notify the {@link #tabStrip} of changes to recyclerview data sets
+   */
+  private RecyclerView.AdapterDataObserver dataSetObserver;
+
+  public SmartTabLayout2(Context context) {
     this(context, null);
   }
 
-  public SmartTabLayout(Context context, AttributeSet attrs) {
+  public SmartTabLayout2(Context context, AttributeSet attrs) {
     this(context, attrs, 0);
   }
 
-  public SmartTabLayout(Context context, AttributeSet attrs, int defStyle) {
+  public SmartTabLayout2(Context context, AttributeSet attrs, int defStyle) {
     super(context, attrs, defStyle);
 
     // Disable the Scroll Bar
@@ -212,7 +221,7 @@ public class SmartTabLayout extends HorizontalScrollView {
   /**
    * Set the behavior of the Indicator scrolling feedback.
    *
-   * @param interpolator {@link com.ogaclejapan.smarttablayout.SmartTabIndicationInterpolator}
+   * @param interpolator {@link SmartTabIndicationInterpolator}
    */
   public void setIndicationInterpolator(SmartTabIndicationInterpolator interpolator) {
     tabStrip.setIndicationInterpolator(interpolator);
@@ -231,7 +240,7 @@ public class SmartTabLayout extends HorizontalScrollView {
 
   /**
    * Set the color used for styling the tab text. This will need to be called prior to calling
-   * {@link #setViewPager(ViewPager)} otherwise it will not get set
+   * {@link #setViewPager(ViewPager2, RecyclerView.Adapter, TabTitleProvider)} otherwise it will not get set
    *
    * @param color to use for tab text
    */
@@ -241,7 +250,7 @@ public class SmartTabLayout extends HorizontalScrollView {
 
   /**
    * Sets the colors used for styling the tab text. This will need to be called prior to calling
-   * {@link #setViewPager(ViewPager)} otherwise it will not get set
+   * {@link #setViewPager(ViewPager2, RecyclerView.Adapter, TabTitleProvider)} otherwise it will not get set
    *
    * @param colors ColorStateList to use for tab text
    */
@@ -273,14 +282,14 @@ public class SmartTabLayout extends HorizontalScrollView {
   }
 
   /**
-   * Set the {@link ViewPager.OnPageChangeListener}. When using {@link SmartTabLayout} you are
-   * required to set any {@link ViewPager.OnPageChangeListener} through this method. This is so
+   * Set the {@link ViewPager2.OnPageChangeCallback}. When using {@link SmartTabLayout2} you are
+   * required to set any {@link ViewPager2.OnPageChangeCallback} through this method. This is so
    * that the layout can update it's scroll position correctly.
    *
-   * @see ViewPager#setOnPageChangeListener(ViewPager.OnPageChangeListener)
+   * @see ViewPager2#registerOnPageChangeCallback(ViewPager2.OnPageChangeCallback)
    */
-  public void setOnPageChangeListener(ViewPager.OnPageChangeListener listener) {
-    viewPagerPageChangeListener = listener;
+  public void setOnPageChangeCallback(ViewPager2.OnPageChangeCallback listener) {
+    viewPagerPageChangeCallback = listener;
   }
 
   /**
@@ -305,7 +314,7 @@ public class SmartTabLayout extends HorizontalScrollView {
    * Set the custom layout to be inflated for the tab views.
    *
    * @param layoutResId Layout id to be inflated
-   * @param textViewId id of the {@link android.widget.TextView} in the inflated view
+   * @param textViewId id of the {@link TextView} in the inflated view
    */
   public void setCustomTabView(int layoutResId, int textViewId) {
     tabProvider = new SimpleTabProvider(getContext(), layoutResId, textViewId);
@@ -324,13 +333,26 @@ public class SmartTabLayout extends HorizontalScrollView {
    * Sets the associated view pager. Note that the assumption here is that the pager content
    * (number of tabs and tab titles) does not change after this call has been made.
    */
-  public void setViewPager(ViewPager viewPager) {
+  public void setViewPager(@NonNull ViewPager2 viewPager, @NonNull RecyclerView.Adapter adapter,
+                           @Nullable TabTitleProvider titleProvider) {
     tabStrip.removeAllViews();
+    // remove attached observer to previous viewpager adapter
+    if (dataSetObserver != null && this.viewPager != null &&
+            this.viewPager.getAdapter() != null && this.viewPager.getAdapter().hasObservers()) {
+      this.viewPager.getAdapter().unregisterAdapterDataObserver(dataSetObserver);
+    }
 
     this.viewPager = viewPager;
+    this.viewPager.setAdapter(adapter);
+    this.tabTitleProvider = titleProvider;
     if (viewPager != null && viewPager.getAdapter() != null) {
-      viewPager.addOnPageChangeListener(new InternalViewPagerListener());
+      viewPager.registerOnPageChangeCallback(new InternalViewPagerListener());
       populateTabStrip();
+    }
+    // add a data set change observer
+    if (dataSetObserver == null) {
+      dataSetObserver = new ViewPagerDataSetObserver();
+      adapter.registerAdapterDataObserver(dataSetObserver);
     }
   }
 
@@ -389,13 +411,18 @@ public class SmartTabLayout extends HorizontalScrollView {
   }
 
   private void populateTabStrip() {
-    final PagerAdapter adapter = viewPager.getAdapter();
+    final RecyclerView.Adapter adapter = viewPager.getAdapter();
 
-    for (int i = 0; i < adapter.getCount(); i++) {
+    for (int i = 0; i < adapter.getItemCount(); i++) {
+
+      CharSequence pageTitle = null;
+      if (tabTitleProvider != null) {
+        pageTitle = tabTitleProvider.getPageTitle(i);
+      }
 
       final View tabView = (tabProvider == null)
-          ? createDefaultTabView(adapter.getPageTitle(i))
-          : tabProvider.createTabView(tabStrip, i, adapter);
+          ? createDefaultTabView(pageTitle)
+          : tabProvider.createTabView(tabStrip, i, pageTitle);
 
       if (tabView == null) {
         throw new IllegalStateException("tabView is null.");
@@ -528,14 +555,14 @@ public class SmartTabLayout extends HorizontalScrollView {
 
   /**
    * Create the custom tabs in the tab layout. Set with
-   * {@link #setCustomTabView(com.ogaclejapan.smarttablayout.SmartTabLayout.TabProvider)}
+   * {@link #setCustomTabView(SmartTabLayout2.TabProvider)}
    */
   public interface TabProvider {
 
     /**
      * @return Return the View of {@code position} for the Tabs
      */
-    View createTabView(ViewGroup container, int position, PagerAdapter adapter);
+    View createTabView(ViewGroup container, int position, @Nullable CharSequence pageTitle);
 
   }
 
@@ -552,7 +579,7 @@ public class SmartTabLayout extends HorizontalScrollView {
     }
 
     @Override
-    public View createTabView(ViewGroup container, int position, PagerAdapter adapter) {
+    public View createTabView(ViewGroup container, int position, CharSequence pageTitle) {
       View tabView = null;
       TextView tabTitleView = null;
 
@@ -569,7 +596,7 @@ public class SmartTabLayout extends HorizontalScrollView {
       }
 
       if (tabTitleView != null) {
-        tabTitleView.setText(adapter.getPageTitle(position));
+        tabTitleView.setText(pageTitle);
       }
 
       return tabView;
@@ -577,7 +604,7 @@ public class SmartTabLayout extends HorizontalScrollView {
 
   }
 
-  private class InternalViewPagerListener implements ViewPager.OnPageChangeListener {
+  private class InternalViewPagerListener extends ViewPager2.OnPageChangeCallback {
 
     private int scrollState;
 
@@ -592,8 +619,8 @@ public class SmartTabLayout extends HorizontalScrollView {
 
       scrollToTab(position, positionOffset);
 
-      if (viewPagerPageChangeListener != null) {
-        viewPagerPageChangeListener.onPageScrolled(position, positionOffset, positionOffsetPixels);
+      if (viewPagerPageChangeCallback != null) {
+        viewPagerPageChangeCallback.onPageScrolled(position, positionOffset, positionOffsetPixels);
       }
     }
 
@@ -601,14 +628,14 @@ public class SmartTabLayout extends HorizontalScrollView {
     public void onPageScrollStateChanged(int state) {
       scrollState = state;
 
-      if (viewPagerPageChangeListener != null) {
-        viewPagerPageChangeListener.onPageScrollStateChanged(state);
+      if (viewPagerPageChangeCallback != null) {
+        viewPagerPageChangeCallback.onPageScrollStateChanged(state);
       }
     }
 
     @Override
     public void onPageSelected(int position) {
-      if (scrollState == ViewPager.SCROLL_STATE_IDLE) {
+      if (scrollState == ViewPager2.SCROLL_STATE_IDLE) {
         tabStrip.onViewPagerPageChanged(position, 0f);
         scrollToTab(position, 0);
       }
@@ -617,8 +644,8 @@ public class SmartTabLayout extends HorizontalScrollView {
         tabStrip.getChildAt(i).setSelected(position == i);
       }
 
-      if (viewPagerPageChangeListener != null) {
-        viewPagerPageChangeListener.onPageSelected(position);
+      if (viewPagerPageChangeCallback != null) {
+        viewPagerPageChangeCallback.onPageSelected(position);
       }
     }
 
@@ -639,4 +666,47 @@ public class SmartTabLayout extends HorizontalScrollView {
     }
   }
 
+  private class ViewPagerDataSetObserver extends RecyclerView.AdapterDataObserver {
+    @Override
+    public void onChanged() {
+      super.onChanged();
+      viewPager.post(new Runnable() {
+        @Override
+        public void run() {
+          tabStrip.removeAllViews();
+          populateTabStrip();
+        }
+      });
+    }
+
+    @Override
+    public void onItemRangeChanged(int positionStart, int itemCount) {
+      super.onItemRangeChanged(positionStart, itemCount);
+      onChanged();
+    }
+
+    @Override
+    public void onItemRangeChanged(int positionStart, int itemCount, @Nullable Object payload) {
+      super.onItemRangeChanged(positionStart, itemCount, payload);
+      onChanged();
+    }
+
+    @Override
+    public void onItemRangeInserted(int positionStart, int itemCount) {
+      super.onItemRangeInserted(positionStart, itemCount);
+      onChanged();
+    }
+
+    @Override
+    public void onItemRangeMoved(int fromPosition, int toPosition, int itemCount) {
+      super.onItemRangeMoved(fromPosition, toPosition, itemCount);
+      onChanged();
+    }
+
+    @Override
+    public void onItemRangeRemoved(int positionStart, int itemCount) {
+      super.onItemRangeRemoved(positionStart, itemCount);
+      onChanged();
+    }
+  }
 }
