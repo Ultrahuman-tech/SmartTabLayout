@@ -89,7 +89,9 @@ public class SmartTabLayout2 extends HorizontalScrollView {
   private OnScrollChangeListener onScrollChangeListener;
   private TabProvider tabProvider;
   private InternalTabClickListener internalTabClickListener;
+  private InternalTabLongClickListener internalTabLongClickListener;
   private OnTabClickListener onTabClickListener;
+  private OnTabLongClickListener onTabLongClickListener;
   private boolean distributeEvenly;
   private int textAppearance;
 
@@ -161,6 +163,7 @@ public class SmartTabLayout2 extends HorizontalScrollView {
     this.tabViewTextHorizontalPadding = textHorizontalPadding;
     this.tabViewTextMinWidth = textMinWidth;
     this.internalTabClickListener = clickable ? new InternalTabClickListener() : null;
+    this.internalTabLongClickListener = clickable ? new InternalTabLongClickListener() : null;
     this.distributeEvenly = distributeEvenly;
     this.textAppearance = textStyle;
 
@@ -305,6 +308,10 @@ public class SmartTabLayout2 extends HorizontalScrollView {
     onTabClickListener = listener;
   }
 
+  public void setOnTabLongClickListener(OnTabLongClickListener listener) {
+      onTabLongClickListener = listener;
+  }
+
   /**
    * Set the custom layout to be inflated for the tab views.
    *
@@ -424,6 +431,9 @@ public class SmartTabLayout2 extends HorizontalScrollView {
       if (internalTabClickListener != null) {
         tabView.setOnClickListener(internalTabClickListener);
       }
+      if (internalTabLongClickListener != null) {
+          tabView.setOnLongClickListener(internalTabLongClickListener);
+      }
 
       tabStrip.addView(tabView);
 
@@ -540,6 +550,19 @@ public class SmartTabLayout2 extends HorizontalScrollView {
     void onTabClicked(int position);
   }
 
+    /**
+     * Interface definition for a callback to be invoked when a tab is long clicked.
+     */
+    public interface OnTabLongClickListener {
+
+        /**
+         * Called when a tab is clicked.
+         *
+         * @param position tab's position
+         */
+        void onTabLongClicked(int position);
+    }
+
   /**
    * Create the custom tabs in the tab layout. Set with
    * {@link #setCustomTabView(SmartTabLayout2.TabProvider)}
@@ -652,4 +675,19 @@ public class SmartTabLayout2 extends HorizontalScrollView {
       }
     }
   }
+
+    private class InternalTabLongClickListener implements OnLongClickListener {
+        @Override
+        public boolean onLongClick(View v) {
+            for (int i = 0; i < tabStrip.getChildCount(); i++) {
+                if (v == tabStrip.getChildAt(i)) {
+                    if (onTabLongClickListener != null) {
+                        onTabLongClickListener.onTabLongClicked(i);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 }
